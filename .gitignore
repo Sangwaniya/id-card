@@ -1,0 +1,21 @@
+# Operating System
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+.venv/
+env/
+venv/
+
+# IDE & Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
