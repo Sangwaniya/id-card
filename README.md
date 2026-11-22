@@ -65,3 +65,35 @@ This will automatically re-encode the images to Base64 and regenerate `index.htm
 - **Frontend**: Vanilla JavaScript (ES6+), HTML5 Canvas API, CSS3
 - **Asset Pipeline**: Python 3 (`base64`, `json`)
 - **Compatibility**: All modern browsers (Chrome, Firefox, Safari, Edge)
+
+---
+
+## 🤖 Remote Autonomous Agent Setup (`agy` + `tmux`)
+
+You can run an autonomous Antigravity coding agent on a cloud VM (GCP, AWS, DigitalOcean, etc.) to maintain and develop this project:
+
+1. **Clone repository onto the server**:
+   ```bash
+   git clone https://github.com/Sangwaniya/id-card.git id-card-studio
+   cd id-card-studio
+   ```
+
+2. **Run the automated setup script**:
+   ```bash
+   chmod +x setup_remote_agent.sh start_agent.sh
+   ./setup_remote_agent.sh
+   ```
+
+3. **Authenticate `agy`**:
+   ```bash
+   agy auth
+   # or export GEMINI_API_KEY="your-api-key"
+   ```
+
+4. **Launch or reattach to the persistent agent session**:
+   ```bash
+   ./start_agent.sh
+   ```
+
+5. **Run autonomous multi-step goals**:
+   Inside `agy`, type `/goal` followed by your objective (e.g., `/goal Refactor template back fields and verify with python build_app.py`).

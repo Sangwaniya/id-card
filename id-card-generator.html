@@ -164,6 +164,33 @@
       box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18) !important;
     }
     
+    /* Person Quick Switcher Bar */
+    .person-quick-switcher {
+      background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 8px 10px;
+      display: flex; flex-direction: column; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .pqs-header {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .pqs-title {
+      font-size: 11px; font-weight: 700; color: #1e293b; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .person-pills-container {
+      display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin;
+    }
+    .person-pill {
+      flex-shrink: 0; padding: 5px 10px; font-size: 12px; font-weight: 600; border-radius: 6px;
+      background: #ffffff; border: 1px solid #cbd5e1; color: #334155; cursor: pointer;
+      display: flex; align-items: center; gap: 5px; transition: all 0.15s; white-space: nowrap;
+    }
+    .person-pill:hover {
+      border-color: var(--primary); background: #eff6ff; color: var(--primary);
+    }
+    .person-pill.active {
+      background: #2563eb; color: #ffffff; border-color: #1d4ed8; font-weight: 700;
+      box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+    }
+    
     /* Main Center Stage */
     .main-stage {
       flex: 1; background: #e2e8f0; display: flex; flex-direction: column;
@@ -405,7 +432,18 @@
       <div class="sidebar-body">
         
         <!-- ================= TAB 1: CARD DATA ================= -->
-        <div id="tabDetails" style="display: flex; flex-direction: column; gap: 14px;">
+        <div id="tabDetails" style="display: flex; flex-direction: column; gap: 12px;">
+          
+          <!-- Person Quick Switcher Horizontal Bar -->
+          <div class="person-quick-switcher">
+            <div class="pqs-header">
+              <span class="pqs-title" id="pqsTitle">Card #1 of 3: SUBHASH CHANDRA</span>
+              <button class="btn btn-xs btn-primary" onclick="addNewPerson()" style="padding: 3px 8px; font-weight: 700;">+ Add Card</button>
+            </div>
+            <div class="person-pills-container" id="personPillsContainer">
+              <!-- Dynamically populated pills -->
+            </div>
+          </div>
           
           <!-- Side Selector Indicator inside Sidebar -->
           <div style="display: flex; gap: 6px; background: #f1f5f9; padding: 4px; border-radius: 8px;">
@@ -704,8 +742,12 @@
           <button id="btnSideBack" class="side-tab-btn" onclick="switchSide('back')">Back Side</button>
         </div>
 
-        <div style="font-size: 12px; font-weight: 700; color: #334155;" id="currentCardTitle">
-          Viewing: Person 1 (Front)
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button class="btn btn-secondary btn-xs" title="Previous Person Card" onclick="navigatePerson(-1)" style="padding: 4px 10px; font-weight: 700;">◀ Prev Card</button>
+          <div style="font-size: 13px; font-weight: 700; color: #0f172a; min-width: 220px; text-align: center;" id="currentCardTitle">
+            Card 1 of 3: SUBHASH CHANDRA
+          </div>
+          <button class="btn btn-secondary btn-xs" title="Next Person Card" onclick="navigatePerson(1)" style="padding: 4px 10px; font-weight: 700;">Next Card ▶</button>
         </div>
 
         <div class="zoom-controls">
@@ -771,6 +813,7 @@
             <button class="btn btn-secondary btn-sm" onclick="addMultiplePeopleFromModal(5)">+ Add 5 People</button>
             <button class="btn btn-secondary btn-sm" onclick="exportCSV()">Export CSV</button>
             <button class="btn btn-secondary btn-sm" onclick="document.getElementById('csvFileInput').click()">Import CSV</button>
+            <button class="btn btn-secondary btn-sm" onclick="removeBlankPeople()" style="color:#dc2626; border-color:#fca5a5;" title="Remove completely empty person cards">Purge Blank Cards</button>
             <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="importCSV(event)" />
           </div>
           <div style="font-size: 12px; color: var(--text-muted);">
@@ -1064,8 +1107,16 @@
 
     function updateHeaderTitle() {
       const p = appState.people[appState.activePersonIndex];
-      const pName = (p && p.frontValues.name) ? p.frontValues.name : `Person ${appState.activePersonIndex + 1} (Blank)`;
-      document.getElementById('currentCardTitle').textContent = `Viewing: ${pName} (${appState.activeSide.toUpperCase()})`;
+      const pName = (p && p.frontValues.name) ? p.frontValues.name.replace(/\n/g, ' ').trim() : `Person ${appState.activePersonIndex + 1} (Blank)`;
+      const total = appState.people.length;
+      const titleEl = document.getElementById('currentCardTitle');
+      if (titleEl) {
+        titleEl.textContent = `Card ${appState.activePersonIndex + 1} of ${total}: ${pName}`;
+      }
+      const pqsTitle = document.getElementById('pqsTitle');
+      if (pqsTitle) {
+        pqsTitle.textContent = `Card #${appState.activePersonIndex + 1} of ${total}: ${pName}`;
+      }
     }
 
     // Switch sidebar tab
@@ -1079,21 +1130,71 @@
       document.getElementById('tabBtnPrint').classList.toggle('active', tab === 'print');
     }
 
+    function updatePersonOptionLabel(idx) {
+      const sel = document.getElementById('personSelect');
+      if (sel && sel.options[idx]) {
+        const p = appState.people[idx];
+        if (p) {
+          const name = p.frontValues.name ? p.frontValues.name.replace(/\n/g, ' ').trim() : `Person ${idx + 1} (Blank)`;
+          const desig = p.frontValues.designation ? ` (${p.frontValues.designation})` : '';
+          sel.options[idx].textContent = `${idx + 1}. ${name}${desig}`;
+        }
+      }
+    }
+
+    function renderPersonPills() {
+      const container = document.getElementById('personPillsContainer');
+      if (!container) return;
+      container.innerHTML = '';
+      appState.people.forEach((p, idx) => {
+        const pill = document.createElement('button');
+        pill.type = 'button';
+        pill.className = 'person-pill' + (idx === appState.activePersonIndex ? ' active' : '');
+        const rawName = p.frontValues.name ? p.frontValues.name.replace(/\n/g, ' ').trim() : '';
+        const shortName = rawName ? (rawName.length > 13 ? rawName.slice(0, 13) + '…' : rawName) : `Person ${idx + 1}`;
+        pill.innerHTML = `<span style="font-size:10px; opacity:0.8;">#${idx + 1}</span> <span>${escapeHtml(shortName)}</span>`;
+        pill.title = `Switch to Card #${idx + 1}: ${rawName || '(Blank)'}`;
+        pill.onclick = () => selectPerson(idx);
+        container.appendChild(pill);
+      });
+
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'person-pill';
+      addBtn.style.background = '#f1f5f9';
+      addBtn.style.borderStyle = 'dashed';
+      addBtn.style.color = '#2563eb';
+      addBtn.style.fontWeight = '700';
+      addBtn.innerHTML = `<span>+ Add Card</span>`;
+      addBtn.title = 'Add new person card';
+      addBtn.onclick = () => addNewPerson();
+      container.appendChild(addBtn);
+
+      const activePill = container.querySelector('.person-pill.active');
+      if (activePill) {
+        activePill.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+
     // Update Person Select UI
     function renderPersonSelect() {
       const sel = document.getElementById('personSelect');
-      sel.innerHTML = '';
-      appState.people.forEach((p, idx) => {
-        const opt = document.createElement('option');
-        opt.value = idx;
-        const name = p.frontValues.name ? p.frontValues.name : `Person ${idx + 1} (Blank)`;
-        const desig = p.frontValues.designation ? ` (${p.frontValues.designation})` : '';
-        opt.textContent = `${idx + 1}. ${name}${desig}`;
-        if (idx === appState.activePersonIndex) opt.selected = true;
-        sel.appendChild(opt);
-      });
+      if (sel) {
+        sel.innerHTML = '';
+        appState.people.forEach((p, idx) => {
+          const opt = document.createElement('option');
+          opt.value = idx;
+          const name = p.frontValues.name ? p.frontValues.name.replace(/\n/g, ' ').trim() : `Person ${idx + 1} (Blank)`;
+          const desig = p.frontValues.designation ? ` (${p.frontValues.designation})` : '';
+          opt.textContent = `${idx + 1}. ${name}${desig}`;
+          if (idx === appState.activePersonIndex) opt.selected = true;
+          sel.appendChild(opt);
+        });
+      }
 
-      document.getElementById('peopleCountBadge').textContent = `${appState.people.length} Person${appState.people.length > 1 ? 's' : ''}`;
+      const badge = document.getElementById('peopleCountBadge');
+      if (badge) badge.textContent = `${appState.people.length} Person${appState.people.length > 1 ? 's' : ''}`;
+      renderPersonPills();
       updateHeaderTitle();
       syncPhotoZoomUI();
     }
@@ -1109,6 +1210,14 @@
       const newIdx = appState.activePersonIndex + direction;
       if (newIdx >= 0 && newIdx < appState.people.length) {
         selectPerson(newIdx);
+      }
+    }
+
+    function goToNextOrAddPerson() {
+      if (appState.activePersonIndex < appState.people.length - 1) {
+        selectPerson(appState.activePersonIndex + 1);
+      } else {
+        addNewPerson();
       }
     }
 
@@ -1178,7 +1287,7 @@
       const frontContainer = document.getElementById('frontFieldsList');
       frontContainer.innerHTML = '';
       appState.layout.front.fields.forEach((f, idx) => {
-        const val = current.frontValues[f.id] || '';
+        const val = getFieldValue(current, 'front', f.id);
         const isVis = (f.visible !== false);
         const card = document.createElement('div');
         card.className = 'field-entry-card';
@@ -1187,6 +1296,22 @@
           card.style.borderStyle = 'dashed';
           card.style.background = '#f8fafc';
         }
+
+        let valueInputHtml = '';
+        if (f.id === 'name') {
+          valueInputHtml = `
+            <textarea class="field-value-input-large" rows="2" style="min-height:56px; resize:vertical; font-family:inherit; line-height:1.4;" placeholder="${isVis ? 'Type ' + escapeHtml(f.label) + ' value...' : '(Field is Hidden on card) Type value...'}" oninput="updatePersonValue('front', '${f.id}', this.value)">${escapeHtml(val)}</textarea>
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#64748b; margin-top:2px;">
+              <span>💡 Auto-wraps to 2 rows on card if long (or press Enter)</span>
+              <span id="nameCharCount" style="font-weight:600;">${val.length} chars</span>
+            </div>
+          `;
+        } else {
+          valueInputHtml = `
+            <input type="text" class="field-value-input-large" value="${escapeHtml(val)}" placeholder="${isVis ? 'Type ' + escapeHtml(f.label) + ' value...' : '(Field is Hidden on card) Type value...'}" oninput="updatePersonValue('front', '${f.id}', this.value)" />
+          `;
+        }
+
         card.innerHTML = `
           <div class="field-entry-header">
             <div class="field-label-wrapper">
@@ -1204,16 +1329,25 @@
               </button>
             </div>
           </div>
-          <input type="text" class="field-value-input-large" value="${escapeHtml(val)}" placeholder="${isVis ? 'Type ' + escapeHtml(f.label) + ' value...' : '(Field is Hidden on card) Type value...'}" oninput="updatePersonValue('front', '${f.id}', this.value)" />
+          ${valueInputHtml}
         `;
         frontContainer.appendChild(card);
       });
+
+      // Add Step Navigation Footer to Front Fields
+      const frontNav = document.createElement('div');
+      frontNav.style.cssText = 'display:flex; gap:8px; margin-top:8px; padding-top:10px; border-top:1px solid #e2e8f0;';
+      frontNav.innerHTML = `
+        <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="navigatePerson(-1)" title="Go to previous card">◀ Prev Card</button>
+        <button class="btn btn-primary btn-sm" style="flex:2; font-weight:700;" onclick="goToNextOrAddPerson()" title="Edit next person card">Next Person Card ➔</button>
+      `;
+      frontContainer.appendChild(frontNav);
 
       // Back fields container
       const backContainer = document.getElementById('backFieldsList');
       backContainer.innerHTML = '';
       appState.layout.back.fields.forEach((f, idx) => {
-        const val = current.backValues[f.id] || '';
+        const val = getFieldValue(current, 'back', f.id);
         const isVis = (f.visible !== false);
         const card = document.createElement('div');
         card.className = 'field-entry-card';
@@ -1244,6 +1378,15 @@
         backContainer.appendChild(card);
       });
 
+      // Add Step Navigation Footer to Back Fields
+      const backNav = document.createElement('div');
+      backNav.style.cssText = 'display:flex; gap:8px; margin-top:8px; padding-top:10px; border-top:1px solid #e2e8f0;';
+      backNav.innerHTML = `
+        <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="navigatePerson(-1)" title="Go to previous card">◀ Prev Card</button>
+        <button class="btn btn-primary btn-sm" style="flex:2; font-weight:700;" onclick="goToNextOrAddPerson()" title="Edit next person card">Next Person Card ➔</button>
+      `;
+      backContainer.appendChild(backNav);
+
       // Back Date input sync
       const dateInp = document.getElementById('backDateInput');
       if (dateInp) dateInp.value = current.backValues.date || '21/11/2026';
@@ -1266,6 +1409,8 @@
       // Sync Layout Controls Inputs
       syncLayoutControls();
       syncPhotoZoomUI();
+      renderPersonPills();
+      updateHeaderTitle();
     }
 
     function updateFieldLabelDirect(side, fieldId, newLabel) {
@@ -1297,7 +1442,13 @@
         current.backValues[fieldId] = value;
       }
       if (fieldId === 'name' || fieldId === 'designation') {
-        renderPersonSelect();
+        updatePersonOptionLabel(appState.activePersonIndex);
+        renderPersonPills();
+        updateHeaderTitle();
+        const cntEl = document.getElementById('nameCharCount');
+        if (cntEl && fieldId === 'name') {
+          cntEl.textContent = `${value.length} chars`;
+        }
       }
       renderCanvas();
       debouncedSave();
@@ -1671,6 +1822,26 @@
       targetCtx.restore();
     }
 
+    // Helper: Safe Field Value Lookup with Fallbacks for Legacy/Alternate IDs
+    function getFieldValue(person, side, fieldId) {
+      if (!person) return '';
+      const vals = (side === 'front') ? person.frontValues : person.backValues;
+      if (!vals) return '';
+      if (vals[fieldId] !== undefined && vals[fieldId] !== null) {
+        const s = String(vals[fieldId]).trim();
+        if (s.length > 0) return s;
+      }
+      // Smart fallbacks
+      if (side === 'front') {
+        if (fieldId === 'pp_no') return String(vals.pa_no || '').trim();
+        if (fieldId === 'pa_no') return String(vals.pp_no || '').trim();
+      } else {
+        if (fieldId === 'iafc_no') return String(vals.id_no || '').trim();
+        if (fieldId === 'id_no') return String(vals.iafc_no || '').trim();
+      }
+      return '';
+    }
+
     // Registry of rendered text bounds for click-to-edit and floating toolbar
     let renderedElements = [];
 
@@ -1737,7 +1908,7 @@
           targetCtx.strokeRect(pb.x, pb.y, pb.w, pb.h);
         }
 
-        // C. Front Text Fields (Clean Colon by Default!)
+        // C. Front Text Fields (Clean Colon by Default, Dynamic 2-Row Wrapping for Name!)
         const cfg = appState.layout.front.textConfig;
         const fields = appState.layout.front.fields;
         const fontName = cfg.fontFamily || 'Arial, sans-serif';
@@ -1748,10 +1919,72 @@
         // Only render visible fields
         const visibleFrontFields = fields.filter(f => f.visible !== false);
 
-        visibleFrontFields.forEach((f, idx) => {
-          const rowY = cfg.startY + (idx * cfg.rowGap);
+        // Pre-check if Name field needs 2 rows
+        let nameNeedsTwoRows = false;
+        let nameLine1 = '';
+        let nameLine2 = '';
+        let nameEffectiveSize = fontSize;
+
+        const nameField = visibleFrontFields.find(f => f.id === 'name');
+        if (nameField) {
+          const rawName = getFieldValue(person, 'front', 'name');
+          if (rawName) {
+            targetCtx.font = `${fontBold}${fontSize}px ${fontName}`;
+            const labelW = targetCtx.measureText(nameField.label || 'Name').width;
+            const colonX = Math.max(cfg.startX + cfg.labelWidth - 14, cfg.startX + labelW + 8);
+            const valStartX = colonX + 16;
+            const maxValWidth = Math.max(120, endRowX - valStartX - 10);
+
+            if (rawName.includes('\n')) {
+              const lines = rawName.split('\n');
+              nameLine1 = lines[0].trim();
+              nameLine2 = lines.slice(1).join(' ').trim();
+              nameNeedsTwoRows = true;
+            } else if (targetCtx.measureText(rawName).width > maxValWidth) {
+              nameNeedsTwoRows = true;
+              const words = rawName.split(/\s+/);
+              let acc = '';
+              let splitIdx = 0;
+              for (let wi = 0; wi < words.length; wi++) {
+                const candidate = acc ? (acc + ' ' + words[wi]) : words[wi];
+                if (targetCtx.measureText(candidate).width <= maxValWidth) {
+                  acc = candidate;
+                  splitIdx = wi + 1;
+                } else {
+                  break;
+                }
+              }
+              if (splitIdx === 0) splitIdx = 1;
+              nameLine1 = words.slice(0, splitIdx).join(' ');
+              nameLine2 = words.slice(splitIdx).join(' ');
+            } else {
+              nameLine1 = rawName;
+              nameLine2 = '';
+              nameNeedsTwoRows = false;
+            }
+
+            if (nameNeedsTwoRows) {
+              targetCtx.font = `${fontBold}${nameEffectiveSize}px ${fontName}`;
+              while (nameEffectiveSize > 18 && 
+                     (targetCtx.measureText(nameLine1).width > maxValWidth || 
+                      (nameLine2 && targetCtx.measureText(nameLine2).width > maxValWidth))) {
+                nameEffectiveSize -= 1;
+                targetCtx.font = `${fontBold}${nameEffectiveSize}px ${fontName}`;
+              }
+            }
+          }
+        }
+
+        const startY = nameNeedsTwoRows ? 302 : (cfg.startY || 310);
+        const baseRowGap = nameNeedsTwoRows ? 68 : (cfg.rowGap || 75);
+        const nameLine2Gap = 30;
+
+        let currentY = startY;
+
+        visibleFrontFields.forEach(f => {
+          const rowY = currentY;
           const rowX = cfg.startX;
-          const val = (person && person.frontValues[f.id]) ? String(person.frontValues[f.id]).trim() : '';
+          const val = getFieldValue(person, 'front', f.id);
 
           targetCtx.textBaseline = 'top';
           targetCtx.font = `${fontBold}${fontSize}px ${fontName}`;
@@ -1766,104 +1999,144 @@
           const colonX = Math.max(rowX + cfg.labelWidth - 14, rowX + measuredLabelWidth + 8);
           const valStartX = colonX + 16;
           const singleDotWidth = targetCtx.measureText('. ').width;
-
-          // Dot Style Rendering (DEFAULT: CLEAN COLON, NO DOTS)
           const dotStyle = cfg.dotStyle || 'clean';
 
-          if (dotStyle === 'clean') {
+          if (f.id === 'name' && nameNeedsTwoRows && nameLine1) {
+            // 2-row Name rendering
+            targetCtx.font = `${fontBold}${nameEffectiveSize}px ${fontName}`;
+
+            // Colon
             targetCtx.fillStyle = cfg.labelColor || '#000000';
             targetCtx.fillText(':', colonX, rowY);
-            if (val) {
+
+            // Row 1
+            targetCtx.fillStyle = cfg.valueColor || '#001a70';
+            targetCtx.fillText(nameLine1, valStartX, rowY);
+
+            // Row 2 (Indented below Row 1)
+            if (nameLine2) {
+              const line2Y = rowY + nameLine2Gap;
               targetCtx.fillStyle = cfg.valueColor || '#001a70';
-              targetCtx.fillText(val, valStartX, rowY);
+              targetCtx.fillText(nameLine2, valStartX, line2Y);
             }
-          } else if (dotStyle === 'colon-dots') {
-            targetCtx.fillStyle = cfg.labelColor || '#000000';
-            targetCtx.fillText(':', colonX, rowY);
-            if (val) {
-              targetCtx.fillStyle = cfg.valueColor || '#001a70';
-              targetCtx.fillText(val, valStartX, rowY);
-              const valWidth = targetCtx.measureText(val).width;
-              const trailStartX = valStartX + valWidth + 10;
-              const trailWidth = Math.max(0, endRowX - trailStartX);
-              const trailDots = Math.floor(trailWidth / singleDotWidth);
-              if (trailDots > 0) {
-                targetCtx.fillStyle = '#64748b';
-                targetCtx.fillText('. '.repeat(trailDots), trailStartX, rowY);
-              }
-            } else {
-              const trailWidth = Math.max(0, endRowX - valStartX);
-              const fullDots = Math.floor(trailWidth / singleDotWidth);
-              if (fullDots > 0) {
-                targetCtx.fillStyle = '#64748b';
-                targetCtx.fillText('. '.repeat(fullDots), valStartX, rowY);
-              }
+
+            if (!forExport) {
+              const totalW = Math.max(260, measuredLabelWidth + 30 + Math.max(targetCtx.measureText(nameLine1).width, targetCtx.measureText(nameLine2 || '').width));
+              renderedElements.push({
+                type: 'front-field',
+                id: f.id,
+                label: f.label,
+                val: val,
+                x: rowX,
+                y: rowY,
+                w: totalW,
+                h: nameLine2Gap + nameEffectiveSize + 6,
+                fontSize: nameEffectiveSize,
+                bold: cfg.bold,
+                color: cfg.valueColor
+              });
             }
-          } else if (dotStyle === 'dots-nearby') {
-            targetCtx.fillStyle = '#64748b';
-            targetCtx.fillText('. .', colonX - 4, rowY);
-            if (val) {
-              targetCtx.fillStyle = cfg.valueColor || '#001a70';
-              targetCtx.fillText(val, valStartX, rowY);
-              const valWidth = targetCtx.measureText(val).width;
-              const trailStartX = valStartX + valWidth + 10;
-              const trailWidth = Math.max(0, endRowX - trailStartX);
-              const trailDots = Math.floor(trailWidth / singleDotWidth);
-              if (trailDots > 0) {
-                targetCtx.fillStyle = '#64748b';
-                targetCtx.fillText('. '.repeat(trailDots), trailStartX, rowY);
+
+            currentY += nameLine2Gap + baseRowGap;
+
+          } else {
+            // Single-row field rendering
+            if (dotStyle === 'clean') {
+              targetCtx.fillStyle = cfg.labelColor || '#000000';
+              targetCtx.fillText(':', colonX, rowY);
+              if (val) {
+                targetCtx.fillStyle = cfg.valueColor || '#001a70';
+                targetCtx.fillText(val, valStartX, rowY);
               }
-            }
-          } else if (dotStyle === 'leader') {
-            const dotStartX = colonX + 6;
-            const fullSpanWidth = Math.max(0, endRowX - dotStartX);
-            if (val) {
-              const valWidth = targetCtx.measureText(val).width;
-              const leaderWidth = Math.max(0, fullSpanWidth - valWidth - 10);
-              const leaderDotCount = Math.floor(leaderWidth / singleDotWidth);
-              if (leaderDotCount > 0) {
-                targetCtx.fillStyle = '#64748b';
-                targetCtx.fillText('. '.repeat(leaderDotCount), dotStartX, rowY);
+            } else if (dotStyle === 'colon-dots') {
+              targetCtx.fillStyle = cfg.labelColor || '#000000';
+              targetCtx.fillText(':', colonX, rowY);
+              if (val) {
+                targetCtx.fillStyle = cfg.valueColor || '#001a70';
+                targetCtx.fillText(val, valStartX, rowY);
+                const valWidth = targetCtx.measureText(val).width;
+                const trailStartX = valStartX + valWidth + 10;
+                const trailWidth = Math.max(0, endRowX - trailStartX);
+                const trailDots = Math.floor(trailWidth / singleDotWidth);
+                if (trailDots > 0) {
+                  targetCtx.fillStyle = '#64748b';
+                  targetCtx.fillText('. '.repeat(trailDots), trailStartX, rowY);
+                }
+              } else {
+                const trailWidth = Math.max(0, endRowX - valStartX);
+                const fullDots = Math.floor(trailWidth / singleDotWidth);
+                if (fullDots > 0) {
+                  targetCtx.fillStyle = '#64748b';
+                  targetCtx.fillText('. '.repeat(fullDots), valStartX, rowY);
+                }
               }
-              targetCtx.fillStyle = cfg.valueColor || '#001a70';
-              targetCtx.fillText(val, dotStartX + leaderWidth + 6, rowY);
-            } else {
+            } else if (dotStyle === 'dots-nearby') {
+              targetCtx.fillStyle = '#64748b';
+              targetCtx.fillText('. .', colonX - 4, rowY);
+              if (val) {
+                targetCtx.fillStyle = cfg.valueColor || '#001a70';
+                targetCtx.fillText(val, valStartX, rowY);
+                const valWidth = targetCtx.measureText(val).width;
+                const trailStartX = valStartX + valWidth + 10;
+                const trailWidth = Math.max(0, endRowX - trailStartX);
+                const trailDots = Math.floor(trailWidth / singleDotWidth);
+                if (trailDots > 0) {
+                  targetCtx.fillStyle = '#64748b';
+                  targetCtx.fillText('. '.repeat(trailDots), trailStartX, rowY);
+                }
+              }
+            } else if (dotStyle === 'leader') {
+              const dotStartX = colonX + 6;
+              const fullSpanWidth = Math.max(0, endRowX - dotStartX);
+              if (val) {
+                const valWidth = targetCtx.measureText(val).width;
+                const leaderWidth = Math.max(0, fullSpanWidth - valWidth - 10);
+                const leaderDotCount = Math.floor(leaderWidth / singleDotWidth);
+                if (leaderDotCount > 0) {
+                  targetCtx.fillStyle = '#64748b';
+                  targetCtx.fillText('. '.repeat(leaderDotCount), dotStartX, rowY);
+                }
+                targetCtx.fillStyle = cfg.valueColor || '#001a70';
+                targetCtx.fillText(val, dotStartX + leaderWidth + 6, rowY);
+              } else {
+                const fullDots = Math.floor(fullSpanWidth / singleDotWidth);
+                if (fullDots > 0) {
+                  targetCtx.fillStyle = '#64748b';
+                  targetCtx.fillText('. '.repeat(fullDots), dotStartX, rowY);
+                }
+              }
+            } else if (dotStyle === 'value-on-dots') {
+              const dotStartX = colonX + 6;
+              const fullSpanWidth = Math.max(0, endRowX - dotStartX);
               const fullDots = Math.floor(fullSpanWidth / singleDotWidth);
               if (fullDots > 0) {
-                targetCtx.fillStyle = '#64748b';
+                targetCtx.fillStyle = '#94a3b8';
                 targetCtx.fillText('. '.repeat(fullDots), dotStartX, rowY);
               }
+              if (val) {
+                targetCtx.fillStyle = cfg.valueColor || '#001a70';
+                targetCtx.fillText(val, valStartX, rowY);
+              }
             }
-          } else if (dotStyle === 'value-on-dots') {
-            const dotStartX = colonX + 6;
-            const fullSpanWidth = Math.max(0, endRowX - dotStartX);
-            const fullDots = Math.floor(fullSpanWidth / singleDotWidth);
-            if (fullDots > 0) {
-              targetCtx.fillStyle = '#94a3b8';
-              targetCtx.fillText('. '.repeat(fullDots), dotStartX, rowY);
-            }
-            if (val) {
-              targetCtx.fillStyle = cfg.valueColor || '#001a70';
-              targetCtx.fillText(val, valStartX, rowY);
-            }
-          }
 
-          // Track element for floating editor
-          if (!forExport) {
-            const totalW = Math.max(260, measuredLabelWidth + 30 + targetCtx.measureText(val || '     ').width);
-            renderedElements.push({
-              type: 'front-field',
-              id: f.id,
-              label: f.label,
-              val: val,
-              x: rowX,
-              y: rowY,
-              w: totalW,
-              h: fontSize + 6,
-              fontSize: fontSize,
-              bold: cfg.bold,
-              color: cfg.valueColor
-            });
+            if (!forExport) {
+              const totalW = Math.max(260, measuredLabelWidth + 30 + targetCtx.measureText(val || '     ').width);
+              renderedElements.push({
+                type: 'front-field',
+                id: f.id,
+                label: f.label,
+                val: val,
+                x: rowX,
+                y: rowY,
+                w: totalW,
+                h: fontSize + 6,
+                fontSize: fontSize,
+                bold: cfg.bold,
+                color: cfg.valueColor
+              });
+            }
+
+            currentY += baseRowGap;
           }
         });
       }
@@ -1876,7 +2149,7 @@
         // Top & Middle Fields
         fields.forEach(f => {
           if (f.visible === false) return; // Skip hidden back fields
-          const val = (person && person.backValues[f.id]) ? String(person.backValues[f.id]).trim() : '';
+          const val = getFieldValue(person, 'back', f.id);
           const fSize = f.size || bLayout.defaultFontSize || 28;
           targetCtx.font = `${f.bold ? 'bold ' : ''}${fSize}px Arial, sans-serif`;
           targetCtx.textBaseline = 'top';
@@ -2306,6 +2579,7 @@
         rowHtml += `
           <td>
             <div style="display:flex; gap:4px;">
+              <button class="btn btn-primary btn-sm" onclick="selectPersonFromModal(${idx})" title="Edit this person card on the canvas">View</button>
               <button class="btn btn-secondary btn-sm" onclick="duplicatePersonIndex(${idx})">Copy</button>
               <button class="btn btn-danger btn-sm" onclick="deletePersonIndex(${idx})">×</button>
             </div>
@@ -2317,14 +2591,22 @@
       });
     }
 
+    function selectPersonFromModal(idx) {
+      selectPerson(idx);
+      closeBulkEditModal();
+    }
+
     function updatePersonValueDirect(personIdx, side, fieldId, value) {
       const p = appState.people[personIdx];
       if (!p) return;
       if (side === 'front') p.frontValues[fieldId] = value;
       else p.backValues[fieldId] = value;
-      renderPersonSelect();
-      renderFieldsUI();
-      renderCanvas();
+      updatePersonOptionLabel(personIdx);
+      renderPersonPills();
+      updateHeaderTitle();
+      if (personIdx === appState.activePersonIndex) {
+        renderCanvas();
+      }
       debouncedSave();
     }
 
@@ -2332,7 +2614,9 @@
       const p = appState.people[personIdx];
       if (p) {
         p.backValues.date = value;
-        renderCanvas();
+        if (personIdx === appState.activePersonIndex) {
+          renderCanvas();
+        }
         debouncedSave();
       }
     }
@@ -2376,6 +2660,35 @@
       renderBulkTableRows();
     }
 
+    function removeBlankPeople() {
+      const initial = appState.people.length;
+      if (initial <= 1) {
+        alert('You have only 1 person card.');
+        return;
+      }
+      appState.people = appState.people.filter((p, idx) => {
+        if (idx === 0) return true; // always keep first card
+        const name = (p.frontValues.name || '').trim();
+        const pp = (p.frontValues.pp_no || p.frontValues.pa_no || '').trim();
+        const desig = (p.frontValues.designation || '').trim();
+        const photo = !!p.frontPhotoData;
+        const hasBack = (p.backValues.sl_no || '').trim() || (p.backValues.iafc_no || '').trim() || (p.backValues.vim || '').trim();
+        return name || pp || desig || photo || hasBack;
+      });
+      appState.activePersonIndex = Math.min(appState.activePersonIndex, appState.people.length - 1);
+      renderBulkTableRows();
+      renderPersonSelect();
+      renderFieldsUI();
+      renderCanvas();
+      saveToStorage();
+      const removed = initial - appState.people.length;
+      if (removed > 0) {
+        alert(`Removed ${removed} blank person card${removed > 1 ? 's' : ''}.`);
+      } else {
+        alert('No completely blank cards found to remove.');
+      }
+    }
+
     function duplicatePersonIndex(idx) {
       const copy = JSON.parse(JSON.stringify(appState.people[idx]));
       copy.id = Date.now();
@@ -2391,13 +2704,15 @@
         alert('At least one person is required.');
         return;
       }
-      appState.people.splice(idx, 1);
-      appState.activePersonIndex = Math.min(appState.activePersonIndex, appState.people.length - 1);
-      renderBulkTableRows();
-      renderPersonSelect();
-      renderFieldsUI();
-      renderCanvas();
-      saveToStorage();
+      if (confirm(`Delete Person ${idx + 1}?`)) {
+        appState.people.splice(idx, 1);
+        appState.activePersonIndex = Math.min(appState.activePersonIndex, appState.people.length - 1);
+        renderBulkTableRows();
+        renderPersonSelect();
+        renderFieldsUI();
+        renderCanvas();
+        saveToStorage();
+      }
     }
 
     function closeBulkEditModal() {
@@ -2405,6 +2720,7 @@
       renderPersonSelect();
       renderFieldsUI();
       renderCanvas();
+      saveToStorage();
     }
 
     // CSV Import / Export
@@ -2511,7 +2827,15 @@
       const rowsPerPage = 5;
       const totalPages = Math.ceil(peopleCount / rowsPerPage);
 
-      document.getElementById('printPageCountSummary').textContent = `${totalPages} Page${totalPages > 1 ? 's' : ''} (${peopleCount} People, 5 per A4 sheet)`;
+      const blankCount = appState.people.filter((p, i) => i > 0 && !p.frontPhotoData && !(p.frontValues.name || '').trim() && !(p.frontValues.pp_no || '').trim()).length;
+      const summaryText = `${totalPages} Page${totalPages > 1 ? 's' : ''} (${peopleCount} People, 5 per A4 sheet)`;
+      const summaryEl = document.getElementById('printPageCountSummary');
+      if (summaryEl) {
+        summaryEl.innerHTML = `
+          <span>${summaryText}</span>
+          ${blankCount > 0 ? `<button class="btn btn-secondary btn-xs" style="margin-left: 10px; background: #fee2e2; color: #dc2626; border-color: #fca5a5; font-weight:700;" onclick="removeBlankPeopleFromPrint()">Purge ${blankCount} Blank Card${blankCount > 1 ? 's' : ''}</button>` : ''}
+        `;
+      }
 
       for (let pIdx = 0; pIdx < totalPages; pIdx++) {
         const pagePeople = appState.people.slice(pIdx * rowsPerPage, (pIdx + 1) * rowsPerPage);
@@ -2563,6 +2887,11 @@
 
     function triggerSystemPrint() {
       window.print();
+    }
+
+    function removeBlankPeopleFromPrint() {
+      removeBlankPeople();
+      generatePrintDOM();
     }
 
     window.addEventListener('beforeprint', () => {
@@ -2682,34 +3011,44 @@
           img.src = parsed.authoritySignData;
         }
         if (Array.isArray(parsed.people) && parsed.people.length > 0) {
-          appState.people = parsed.people.map(p => {
+          appState.people = parsed.people.map((p, pIdx) => {
             const frontVals = p.frontValues || {};
-            if (frontVals.pa_no && !frontVals.pp_no) {
+            if (frontVals.pa_no && (!frontVals.pp_no || !frontVals.pp_no.trim())) {
               frontVals.pp_no = frontVals.pa_no;
             }
+            const defaultFront = (pIdx === 0) ? {
+              pp_no: '859342-K',
+              name: 'SUBHASH CHANDRA',
+              designation: 'JWO',
+              country: 'INDIA',
+              validity: 'TILL POSTED OUT'
+            } : {
+              country: 'INDIA',
+              validity: 'TILL POSTED OUT'
+            };
+            const bVals = p.backValues || {};
+            if (bVals.id_no && (!bVals.iafc_no || !bVals.iafc_no.trim())) {
+              bVals.iafc_no = bVals.id_no;
+            }
+            const defaultBack = (pIdx === 0) ? {
+              sl_no: '0099',
+              iafc_no: 'AFIC NO.',
+              vim: 'M-1294',
+              validity: 'TILL POSTED OUT',
+              date: '15/08/2024'
+            } : {
+              validity: 'TILL POSTED OUT',
+              date: '21/11/2026'
+            };
             const personObj = {
-              id: p.id,
+              id: p.id || (Date.now() + pIdx),
               frontPhotoData: p.frontPhotoData || null,
               frontPhoto: null,
               photoOffsetX: p.photoOffsetX || 0,
               photoOffsetY: p.photoOffsetY || 0,
               photoZoom: p.photoZoom || 1.0,
-              frontValues: Object.assign({
-                pp_no: '859342-K',
-                name: 'SUBHASH CHANDRA',
-                designation: 'JWO',
-                country: 'INDIA',
-                validity: 'TILL POSTED OUT'
-              }, frontVals),
-              backValues: Object.assign({
-                sl_no: '0099',
-                iafc_no: (p.backValues && (p.backValues.iafc_no || p.backValues.id_no)) || 'AFIC NO.',
-                vim: (p.backValues && p.backValues.vim) || 'M-1294',
-                validity: (p.backValues && p.backValues.validity) || 'TILL POSTED OUT',
-                date: (p.backValues && p.backValues.date) || '15/08/2024'
-              }, p.backValues || {}, {
-                iafc_no: (p.backValues && (p.backValues.iafc_no || p.backValues.id_no)) || 'AFIC NO.'
-              })
+              frontValues: Object.assign({}, defaultFront, frontVals),
+              backValues: Object.assign({}, defaultBack, bVals)
             };
             if (p.frontPhotoData) {
               const pImg = new Image();
